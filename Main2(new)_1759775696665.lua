@@ -1656,7 +1656,7 @@ function MacUI:Window(config)
                     return toggleState
                 end,
                 
-                SetTitle = function(newTitle)
+                SetTitle = function(self, newTitle)
                     label.Text = newTitle
                 end,
                 
@@ -1933,7 +1933,7 @@ local function roundValue(val)
                     return value
                 end,
                 
-                SetTitle = function(newTitle)
+                SetTitle = function(self, newTitle)
                     titleLabel.Text = newTitle
                 end,
                 
@@ -2199,7 +2199,7 @@ local function roundValue(val)
             end
             
             local dropdownAPI = {
-                SetTitle = function(newTitle)
+                SetTitle = function(self, newTitle)
                     if titleLabel then
                         titleLabel.Text = newTitle
                     else
@@ -2304,7 +2304,7 @@ local function roundValue(val)
             end
             
             local keybindAPI = {
-                SetTitle = function(newTitle)
+                SetTitle = function(self, newTitle)
                     label.Text = newTitle
                 end,
                 
@@ -2596,7 +2596,7 @@ local function roundValue(val)
             end
             
             local colorPickerAPI = {
-                SetTitle = function(newTitle)
+                SetTitle = function(self, newTitle)
                     label.Text = newTitle
                 end,
                 
@@ -2719,7 +2719,7 @@ local function roundValue(val)
             local codeAPI = {
                 Title = currentTitle,
                 
-                SetTitle = function(newTitle)
+                SetTitle = function(self, newTitle)
                     currentTitle = newTitle
                     titleLabel.Text = newTitle
                 end,
