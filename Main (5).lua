@@ -1025,6 +1025,8 @@ function MacUI:Window(config)
     })
 
     self.ConfigData = {}
+    self.FlaggedElements = {}
+    
     if config.ConfigurationSaving and config.ConfigurationSaving.Enabled then
         local configFileName = config.ConfigurationSaving.FileName or "MacUI_Config"
         self.ConfigData = LoadConfig(configFileName) or {}
@@ -1034,13 +1036,36 @@ function MacUI:Window(config)
         
         self.SaveConfig = function()
             if config.ConfigurationSaving and config.ConfigurationSaving.Enabled then
-                SaveConfig(configFileName, self.ConfigData)
-                print("[MacUI] Config data saved:", HttpService:JSONEncode(self.ConfigData))
+                local dataToSave = {}
+                
+                for flag, element in pairs(self.FlaggedElements) do
+                    if element.Type == "Toggle" and element.CurrentValue ~= nil then
+                        dataToSave[flag] = element.CurrentValue
+                    elseif element.Type == "Slider" and element.Get then
+                        dataToSave[flag] = element.Get()
+                    elseif element.Type == "Input" and element.Get then
+                        dataToSave[flag] = element.Get()
+                    elseif element.Type == "Dropdown" and element.CurrentValue ~= nil then
+                        dataToSave[flag] = element.CurrentValue
+                    elseif element.Type == "ColorPicker" and element.Color then
+                        dataToSave[flag] = {
+                            R = element.Color.R * 255,
+                            G = element.Color.G * 255,
+                            B = element.Color.B * 255
+                        }
+                    end
+                end
+                
+                self.ConfigData = dataToSave
+                SaveConfig(configFileName, dataToSave)
+                print("[MacUI] Config data saved:", HttpService:JSONEncode(dataToSave))
             end
         end
         
-        SaveConfig(configFileName, self.ConfigData)
-        print("[MacUI] Initial config file created")
+        if next(self.ConfigData) == nil then
+            SaveConfig(configFileName, self.ConfigData)
+            print("[MacUI] Initial config file created")
+        end
         
         task.spawn(function()
             while ScreenGui and ScreenGui.Parent do
@@ -1053,6 +1078,27 @@ function MacUI:Window(config)
     else
         self.SaveConfig = function() end
         print("[MacUI] Config system disabled")
+    end
+    
+    function self:LoadConfigValues(configData)
+        for flag, value in pairs(configData) do
+            if self.FlaggedElements[flag] then
+                local element = self.FlaggedElements[flag]
+                if element.Type == "Toggle" and element.SetValue then
+                    element.SetValue(value)
+                elseif element.Type == "Slider" and element.SetValue then
+                    element.SetValue(value)
+                elseif element.Type == "Input" and element.SetValue then
+                    element.SetValue(value)
+                elseif element.Type == "Dropdown" and element.SetValue then
+                    element.SetValue(value)
+                elseif element.Type == "ColorPicker" and element.SetValue then
+                    element.SetValue(value)
+                end
+            end
+            self.ConfigData[flag] = value
+        end
+        print("[MacUI] Config values loaded and UI updated")
     end
 
     function self:SelectTab(index)
@@ -1647,6 +1693,7 @@ function MacUI:Window(config)
 
             btn.MouseButton1Click:Connect(function()
                 toggleState = not toggleState
+                toggleAPI.CurrentValue = toggleState
                 tween(toggleBg, 0.2, { 
                     BackgroundColor3 = toggleState and Color3.fromRGB(52, 199, 89) or Color3.fromRGB(200, 200, 205)
                 })
@@ -1655,9 +1702,8 @@ function MacUI:Window(config)
                 })
                 if cfg.Callback then cfg.Callback(toggleState) end
                 
-                if self.ConfigData and cfg.Flag then
-                    self.ConfigData[cfg.Flag] = toggleState
-                    if self.SaveConfig then self.SaveConfig() end
+                if cfg.Flag and self.SaveConfig then
+                    self.SaveConfig()
                 end
             end)
             
@@ -1668,8 +1714,19 @@ function MacUI:Window(config)
             end
             
             local toggleAPI = {
+                Type = "Toggle",
+                CurrentValue = toggleState,
+                
+                SetValue = function(value)
+                    toggleState = value
+                    toggleAPI.CurrentValue = value
+                    toggleBg.BackgroundColor3 = toggleState and Color3.fromRGB(52, 199, 89) or Color3.fromRGB(200, 200, 205)
+                    toggleKnob.Position = toggleState and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+                end,
+                
                 Set = function(value)
                     toggleState = value
+                    toggleAPI.CurrentValue = value
                     tween(toggleBg, 0.2, { 
                         BackgroundColor3 = toggleState and Color3.fromRGB(52, 199, 89) or Color3.fromRGB(200, 200, 205)
                     })
@@ -1677,10 +1734,6 @@ function MacUI:Window(config)
                         Position = toggleState and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
                     })
                     if cfg.Callback then cfg.Callback(toggleState) end
-                    if self.ConfigData and cfg.Flag then
-                        self.ConfigData[cfg.Flag] = toggleState
-                        if self.SaveConfig then self.SaveConfig() end
-                    end
                 end,
                 
                 Get = function()
@@ -1691,6 +1744,10 @@ function MacUI:Window(config)
                     holder:Destroy()
                 end
             }
+            
+            if cfg.Flag and self.FlaggedElements then
+                self.FlaggedElements[cfg.Flag] = toggleAPI
+            end
 
             return toggleAPI
         end
@@ -1727,14 +1784,27 @@ function MacUI:Window(config)
                 tween(holder, 0.2, { BackgroundColor3 = Color3.fromRGB(255, 255, 255) })
                 if cfg.Callback then cfg.Callback(input.Text) end
                 
-                if self.ConfigData and cfg.Flag then
-                    self.ConfigData[cfg.Flag] = input.Text
-                    if self.SaveConfig then self.SaveConfig() end
+                if cfg.Flag and self.SaveConfig then
+                    self.SaveConfig()
                 end
             end)
             
             if self.ConfigData and cfg.Flag and self.ConfigData[cfg.Flag] then
                 input.Text = self.ConfigData[cfg.Flag]
+            end
+            
+            local inputAPI = {
+                Type = "Input",
+                SetValue = function(value)
+                    input.Text = tostring(value)
+                end,
+                Get = function()
+                    return input.Text
+                end
+            }
+            
+            if cfg.Flag and self.FlaggedElements then
+                self.FlaggedElements[cfg.Flag] = inputAPI
             end
             
             return input
@@ -1875,9 +1945,8 @@ local function roundValue(val)
                 
                 if cfg.Callback then cfg.Callback(value) end
                 
-                if self.ConfigData and cfg.Flag then
-                    self.ConfigData[cfg.Flag] = value
-                    if self.SaveConfig then self.SaveConfig() end
+                if cfg.Flag and self.SaveConfig then
+                    self.SaveConfig()
                 end
             end
             
@@ -1943,6 +2012,16 @@ local function roundValue(val)
             end
             
             local sliderAPI = {
+                Type = "Slider",
+                
+                SetValue = function(newValue)
+                    value = math.clamp(newValue, min, max)
+                    valueLabel.Text = tostring(value)
+                    local pos = (value - min) / (max - min)
+                    sliderFill.Size = UDim2.new(pos, 0, 1, 0)
+                    sliderKnob.Position = UDim2.new(pos, -9, 0.5, -9)
+                end,
+                
                 Set = function(newValue)
                     value = math.clamp(newValue, min, max)
                     valueLabel.Text = tostring(value)
@@ -1950,10 +2029,6 @@ local function roundValue(val)
                     tween(sliderFill, 0.2, { Size = UDim2.new(pos, 0, 1, 0) })
                     tween(sliderKnob, 0.2, { Position = UDim2.new(pos, -9, 0.5, -9) })
                     if cfg.Callback then cfg.Callback(value) end
-                    if self.ConfigData and cfg.Flag then
-                        self.ConfigData[cfg.Flag] = value
-                        if self.SaveConfig then self.SaveConfig() end
-                    end
                 end,
                 
                 Get = function()
@@ -1986,6 +2061,10 @@ local function roundValue(val)
                     holder:Destroy()
                 end
             }
+            
+            if cfg.Flag and self.FlaggedElements then
+                self.FlaggedElements[cfg.Flag] = sliderAPI
+            end
             
             return sliderAPI
         end
@@ -2169,9 +2248,8 @@ local function roundValue(val)
                             
                             if cfg.Callback then cfg.Callback(option) end
                             
-                            if self.ConfigData and cfg.Flag then
-                                self.ConfigData[cfg.Flag] = option
-                                if self.SaveConfig then self.SaveConfig() end
+                            if cfg.Flag and self.SaveConfig then
+                                self.SaveConfig()
                             end
                         end)
                     end
@@ -2201,7 +2279,28 @@ local function roundValue(val)
                 selectedLabel.Text = selectedValue
             end
             
-            return holder
+            local dropdownAPI = {
+                Type = "Dropdown",
+                CurrentValue = selectedValue,
+                
+                SetValue = function(value)
+                    if not multiSelect then
+                        selectedValue = value
+                        dropdownAPI.CurrentValue = value
+                        selectedLabel.Text = value
+                    end
+                end,
+                
+                Get = function()
+                    return multiSelect and selectedValues or selectedValue
+                end
+            }
+            
+            if cfg.Flag and self.FlaggedElements then
+                self.FlaggedElements[cfg.Flag] = dropdownAPI
+            end
+            
+            return dropdownAPI
         end
         
         function tab:Keybind(cfg)
@@ -2452,16 +2551,21 @@ local function roundValue(val)
                 Rotation = 90
             })
             
+            local colorPickerAPI = {
+                Type = "ColorPicker",
+                Color = selectedColor
+            }
+            
             local function updateColor()
                 selectedColor = HSVToRGB(hue, sat, val)
+                colorPickerAPI.Color = selectedColor
                 colorDisplay.BackgroundColor3 = selectedColor
                 satValPicker.BackgroundColor3 = HSVToRGB(hue, 1, 1)
                 
                 if cfg.Callback then cfg.Callback(selectedColor) end
                 
-                if self.ConfigData and cfg.Flag then
-                    self.ConfigData[cfg.Flag] = selectedColor
-                    if self.SaveConfig then self.SaveConfig() end
+                if cfg.Flag and self.SaveConfig then
+                    self.SaveConfig()
                 end
             end
             
@@ -2537,14 +2641,43 @@ local function roundValue(val)
             end)
             
             if self.ConfigData and cfg.Flag and self.ConfigData[cfg.Flag] then
-                selectedColor = self.ConfigData[cfg.Flag]
+                if type(self.ConfigData[cfg.Flag]) == "table" then
+                    selectedColor = Color3.fromRGB(
+                        self.ConfigData[cfg.Flag].R,
+                        self.ConfigData[cfg.Flag].G,
+                        self.ConfigData[cfg.Flag].B
+                    )
+                else
+                    selectedColor = self.ConfigData[cfg.Flag]
+                end
                 colorDisplay.BackgroundColor3 = selectedColor
                 local r, g, b = selectedColor.R * 255, selectedColor.G * 255, selectedColor.B * 255
                 hue, sat, val = RGBToHSV(r, g, b)
                 satValPicker.BackgroundColor3 = HSVToRGB(hue, 1, 1)
             end
             
-            return holder
+            colorPickerAPI.SetValue = function(color)
+                if type(color) == "table" then
+                    selectedColor = Color3.fromRGB(color.R, color.G, color.B)
+                else
+                    selectedColor = color
+                end
+                colorPickerAPI.Color = selectedColor
+                colorDisplay.BackgroundColor3 = selectedColor
+                local r, g, b = selectedColor.R * 255, selectedColor.G * 255, selectedColor.B * 255
+                hue, sat, val = RGBToHSV(r, g, b)
+                satValPicker.BackgroundColor3 = HSVToRGB(hue, 1, 1)
+            end
+            
+            colorPickerAPI.Get = function()
+                return selectedColor
+            end
+            
+            if cfg.Flag and self.FlaggedElements then
+                self.FlaggedElements[cfg.Flag] = colorPickerAPI
+            end
+            
+            return colorPickerAPI
         end
         
         function tab:Code(cfg)
@@ -2945,15 +3078,23 @@ local function roundValue(val)
                 end
                 
                 local loadedData = LoadConfig(selectedConfigName)
-                if loadedData and self.ConfigData then
-                    for key, value in pairs(loadedData) do
-                        self.ConfigData[key] = value
+                if loadedData then
+                    if self.LoadConfigValues then
+                        self:LoadConfigValues(loadedData)
+                    else
+                        for key, value in pairs(loadedData) do
+                            self.ConfigData[key] = value
+                        end
+                    end
+                    
+                    if self.SaveConfig then
+                        self.SaveConfig()
                     end
                     
                     MacUI:Notify({
                         Title = "Config Manager",
-                        Content = "โหลด Config '" .. selectedConfigName .. "' เรียบร้อย! กรุณารีสตาร์ทสคริปต์",
-                        Duration = 5
+                        Content = "โหลด Config '" .. selectedConfigName .. "' เรียบร้อย! UI อัพเดทแล้ว",
+                        Duration = 4
                     })
                 end
             end)
