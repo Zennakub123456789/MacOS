@@ -1972,7 +1972,8 @@ local function roundValue(val)
             local isOpen = false
             local multiSelect = cfg.Multi or false
             local selectedValues = multiSelect and (cfg.Default or {}) or nil
-            
+            local baseHeight = 38
+                
             local holder = create("Frame", {
                 Parent = TabPage,
                 Size = UDim2.new(1, -20, 0, 38),
@@ -2142,7 +2143,7 @@ local function roundValue(val)
                             tween(arrow, 0.2, { Rotation = 0 })
                             wait(0.2)
                             optionsFrame.Visible = false
-                            holder.Size = UDim2.new(1, -20, 0, 38)
+                            holder.Size = UDim2.new(1, -20, 0, baseHeight)
                             
                             if cfg.Callback then cfg.Callback(option) end
                             
@@ -2161,7 +2162,7 @@ local function roundValue(val)
                     optionsFrame.Visible = true
                     local optionCount = #(cfg.Options or {})
                     local maxHeight = math.min(optionCount * 34 + 8, cfg.MaxHeight or 250)
-                    holder.Size = UDim2.new(1, -20, 0, 38 + maxHeight + 4)
+                    holder.Size = UDim2.new(1, -20, 0, baseHeight + maxHeight + 4)
                     tween(optionsFrame, 0.2, { Size = UDim2.new(1, 0, 0, maxHeight) })
                     tween(arrow, 0.2, { Rotation = 180 })
                 else
@@ -2169,7 +2170,7 @@ local function roundValue(val)
                     tween(arrow, 0.2, { Rotation = 0 })
                     wait(0.2)
                     optionsFrame.Visible = false
-                    holder.Size = UDim2.new(1, -20, 0, 38)
+                    holder.Size = UDim2.new(1, -20, 0, baseHeight)
                 end
             end)
             
@@ -2180,6 +2181,7 @@ local function roundValue(val)
             
             local titleLabel
             if cfg.Title then
+                baseHeight = 60
                 holder.Size = UDim2.new(1, -20, 0, 60)
                 
                 titleLabel = create("TextLabel", {
@@ -2214,6 +2216,7 @@ local function roundValue(val)
                             TextSize = 12,
                             TextXAlignment = Enum.TextXAlignment.Left
                         })
+                        baseHeight = 60
                         holder.Size = UDim2.new(1, -20, 0, 60)
                         dropdownBtn.Position = UDim2.new(0, 0, 0, 22)
                         optionsFrame.Position = UDim2.new(0, 0, 0, 64)
