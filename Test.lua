@@ -1,4 +1,4 @@
--- join Discord: discord.gg/cQywVqjcyj
+-- join Discord: https://discord.gg/cQywVqjcyj
 local MacUI = {}
 
 local Players = game:GetService("Players")
@@ -8,190 +8,9 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
--- ==========================================
--- CONFIG MANAGER (Similar to WindUI)
--- ==========================================
-local ConfigManager = {
-    Folder = nil,
-    Path = nil,
-    Configs = {},
-    CurrentConfig = nil,
-    Elements = {},
-    CustomData = {},
-    Parser = {
-        Toggle = {
-            Save = function(element)
-                return {
-                    __type = "Toggle",
-                    value = element.Value
-                }
-            end,
-            Load = function(element, data)
-                if element and element.Set then
-                    element:Set(data.value)
-                end
-            end
-        },
-        Slider = {
-            Save = function(element)
-                return {
-                    __type = "Slider",
-                    value = element.Value
-                }
-            end,
-            Load = function(element, data)
-                if element and element.Set then
-                    element:Set(tonumber(data.value))
-                end
-            end
-        },
-        Dropdown = {
-            Save = function(element)
-                return {
-                    __type = "Dropdown",
-                    value = element.Value
-                }
-            end,
-            Load = function(element, data)
-                if element and element.Set then
-                    element:Set(data.value)
-                end
-            end
-        }
-    }
-}
+local ConfigFolder = "MacUI_Configs"
+local SavedConfigs = {}
 
-function ConfigManager:Init(windowConfig)
-    if not windowConfig.SaveKey then
-        warn("[MacUI ConfigManager] Window.SaveKey is not specified.")
-        return false
-    end
-    
-    self.Folder = windowConfig.SaveKey
-    self.Path = "MacUI_Configs/" .. tostring(self.Folder) .. "/config/"
-    
-    if not isfolder("MacUI_Configs/" .. self.Folder) then
-        makefolder("MacUI_Configs/" .. self.Folder)
-        if not isfolder("MacUI_Configs/" .. self.Folder .. "/config/") then
-            makefolder("MacUI_Configs/" .. self.Folder .. "/config/")
-        end
-    end
-    
-    return self
-end
-
-function ConfigManager:CreateConfig(configName)
-    local config = {
-        Path = self.Path .. configName .. ".json",
-        Elements = {},
-        CustomData = {},
-        Version = 1.1,
-        Name = configName
-    }
-    
-    function config:Register(flag, element)
-        self.Elements[flag] = element
-    end
-    
-    function config:Set(key, value)
-        self.CustomData[key] = value
-    end
-    
-    function config:Get(key)
-        return self.CustomData[key]
-    end
-    
-    function config:Save()
-        local data = {
-            __version = self.Version,
-            __elements = {},
-            __custom = self.CustomData
-        }
-        
-        for flag, element in pairs(self.Elements) do
-            if ConfigManager.Parser[element.__type] then
-                data.__elements[tostring(flag)] = ConfigManager.Parser[element.__type].Save(element)
-            end
-        end
-        
-        local jsonString = HttpService:JSONEncode(data)
-        if writefile then
-            writefile(self.Path, jsonString)
-            print("[MacUI Config] Saved to:", self.Path)
-        end
-        
-        return data
-    end
-    
-    function config:Load()
-        if not isfile(self.Path) then
-            return false, "Config file does not exist"
-        end
-        
-        local success, data = pcall(function()
-            local content = readfile(self.Path)
-            return HttpService:JSONDecode(content)
-        end)
-        
-        if not success then
-            return false, "Failed to parse config file"
-        end
-        
-        if not data.__version then
-            data = {
-                __version = self.Version,
-                __elements = data,
-                __custom = {}
-            }
-        end
-        
-        for flag, elementData in pairs(data.__elements or {}) do
-            if self.Elements[flag] and ConfigManager.Parser[elementData.__type] then
-                task.spawn(function()
-                    ConfigManager.Parser[elementData.__type].Load(self.Elements[flag], elementData)
-                end)
-            end
-        end
-        
-        self.CustomData = data.__custom or {}
-        return self.CustomData
-    end
-    
-    function config:SetAsCurrent()
-        ConfigManager.CurrentConfig = self
-    end
-    
-    config:SetAsCurrent()
-    self.Configs[configName] = config
-    return config
-end
-
-function ConfigManager:AllConfigs()
-    if not listfiles then return {} end
-    
-    local configs = {}
-    if not isfolder(self.Path) then
-        makefolder(self.Path)
-        return configs
-    end
-    
-    for _, filePath in pairs(listfiles(self.Path)) do
-        local configName = filePath:match("([^\\/]+)%.json$")
-        if configName then
-            table.insert(configs, configName)
-        end
-    end
-    
-    return configs
-end
-
-function ConfigManager:GetConfig(configName)
-    return self.Configs[configName]
-end
-
--- ==========================================
--- HELPER FUNCTIONS
--- ==========================================
 local function create(class, props)
     local obj = Instance.new(class)
     for i, v in pairs(props) do
@@ -205,6 +24,41 @@ local function tween(obj, time, props)
     local tween = TweenService:Create(obj, tweenInfo, props)
     tween:Play()
     return tween
+end
+
+local function SaveConfig(fileName, data)
+    if not isfolder(ConfigFolder) then
+        makefolder(ConfigFolder)
+    end
+    local filePath = ConfigFolder .. "/" .. fileName .. ".json"
+    local jsonString
+    if next(data) == nil then
+        jsonString = "{}"
+    else
+        jsonString = HttpService:JSONEncode(data)
+    end
+    
+    writefile(filePath, jsonString)
+    print("[MacUI Config] Saved to:", filePath)
+    print("[MacUI Config] Check your executor's workspace folder!")
+end
+
+local function LoadConfig(fileName)
+    if isfile(ConfigFolder .. "/" .. fileName .. ".json") then
+        local content = readfile(ConfigFolder .. "/" .. fileName .. ".json")
+        if content == "[]" then
+            return {}
+        end
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(content)
+        end)
+        if success then
+            return result
+        else
+            return {}
+        end
+    end
+    return nil
 end
 
 local function initKeySystemLibraries()
@@ -705,6 +559,10 @@ local function CreateKeySystem(config, callback)
             StatusLabel.Text = "✓ Key accepted! Loading..."
             StatusLabel.TextColor3 = Color3.fromRGB(52, 199, 89)
             
+            if keySettings.SaveKey then
+                SaveConfig(keySettings.FileName or "MacUI_Key", { Key = enteredKey })
+            end
+            
             keyAccepted = true
             wait(0.5)
             tween(KeyFrame, 0.3, { Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0) })
@@ -721,6 +579,17 @@ local function CreateKeySystem(config, callback)
             StatusLabel.TextColor3 = Color3.fromRGB(255, 59, 48)
         end
     end)
+    
+    if keySettings.SaveKey then
+        local saved = LoadConfig(keySettings.FileName or "MacUI_Key")
+        if saved and CheckKey(saved.Key) then
+            KeyGui:Destroy()
+            if callback then
+                callback(true)
+            end
+            return
+        end
+    end
 end
 
 function MacUI:Window(config)
@@ -757,6 +626,13 @@ function MacUI:Window(config)
         local discordSettings = config.Discord
         local shouldPrompt = true
         
+        if discordSettings.RememberJoins then
+            local saved = LoadConfig("Discord_" .. (discordSettings.Invite or "default"))
+            if saved and saved.Joined then
+                shouldPrompt = false
+            end
+        end
+        
         if shouldPrompt and syn and syn.request then
             local success = pcall(function()
                 syn.request({
@@ -773,10 +649,283 @@ function MacUI:Window(config)
                     })
                 })
                 
+                if discordSettings.RememberJoins then
+                    SaveConfig("Discord_" .. (discordSettings.Invite or "default"), { Joined = true })
+                end
             end)
         end
     end
     
+    local ConfigManager = {}
+    ConfigManager.Folder = nil
+    ConfigManager.Path = nil
+    ConfigManager.Configs = {}
+    ConfigManager.CurrentConfig = nil
+    ConfigManager.Window = nil
+    ConfigManager.PendingFlags = {}
+    
+    ConfigManager.Parser = {
+        Colorpicker = {
+            Save = function(element)
+                return {
+                    __type = element.__type,
+                    value = element.Default:ToHex(),
+                    transparency = element.Transparency or nil,
+                }
+            end,
+            Load = function(element, data)
+                if element and element.Update then
+                    element:Update(Color3.fromHex(data.value), data.transparency or nil)
+                end
+            end
+        },
+        Dropdown = {
+            Save = function(element)
+                return {
+                    __type = element.__type,
+                    value = element.Value,
+                }
+            end,
+            Load = function(element, data)
+                if element and element.Select then
+                    element:Select(data.value)
+                end
+            end
+        },
+        Input = {
+            Save = function(element)
+                return {
+                    __type = element.__type,
+                    value = element.Value,
+                }
+            end,
+            Load = function(element, data)
+                if element and element.Set then
+                    element:Set(data.value)
+                end
+            end
+        },
+        Keybind = {
+            Save = function(element)
+                return {
+                    __type = element.__type,
+                    value = element.Value,
+                }
+            end,
+            Load = function(element, data)
+                if element and element.Set then
+                    element:Set(data.value)
+                end
+            end
+        },
+        Slider = {
+            Save = function(element)
+                return {
+                    __type = element.__type,
+                    value = element.Value and element.Value.Default or element.Value,
+                }
+            end,
+            Load = function(element, data)
+                if element and element.Set then
+                    element:Set(tonumber(data.value))
+                end
+            end
+        },
+        Toggle = {
+            Save = function(element)
+                return {
+                    __type = element.__type,
+                    value = element.Value,
+                }
+            end,
+            Load = function(element, data)
+                if element and element.Set then
+                    element:Set(data.value)
+                end
+            end
+        },
+    }
+    
+    function ConfigManager:Init(window)
+        if not window.Folder then
+            warn("[ MacUI.ConfigManager ] Window.Folder is not specified.")
+            return false
+        end
+        
+        ConfigManager.Window = window
+        ConfigManager.Folder = window.Folder
+        ConfigManager.Path = "MacUI/" .. tostring(ConfigManager.Folder) .. "/config/"
+        
+        if not isfolder("MacUI/" .. ConfigManager.Folder) then
+            makefolder("MacUI/" .. ConfigManager.Folder)
+            if not isfolder("MacUI/" .. ConfigManager.Folder .. "/config/") then
+                makefolder("MacUI/" .. ConfigManager.Folder .. "/config/")
+            end
+        end
+        
+        local configs = ConfigManager:AllConfigs()
+        
+        for _, configName in next, configs do
+            if isfile and readfile and isfile(ConfigManager.Path .. configName .. ".json") then
+                ConfigManager.Configs[configName] = readfile(ConfigManager.Path .. configName .. ".json")
+            end
+        end
+        
+        return ConfigManager
+    end
+    
+    function ConfigManager:CreateConfig(name)
+        local config = {
+            Path = ConfigManager.Path .. name .. ".json",
+            Elements = {},
+            CustomData = {},
+            Version = 1.1
+        }
+        
+        if not name then
+            return false, "No config file is selected"
+        end
+        
+        function config:SetAsCurrent()
+            if ConfigManager.Window then
+                ConfigManager.Window.CurrentConfig = config
+            end
+        end
+        
+        function config:Register(flag, element)
+            config.Elements[flag] = element
+        end
+        
+        function config:Set(key, value)
+            config.CustomData[key] = value
+        end
+        
+        function config:Get(key)
+            return config.CustomData[key]
+        end
+        
+        function config:Save()
+            if ConfigManager.Window and ConfigManager.Window.PendingFlags then
+                for flag, element in next, ConfigManager.Window.PendingFlags do
+                    config:Register(flag, element)
+                end
+            end
+            
+            local saveData = {
+                __version = config.Version,
+                __elements = {},
+                __custom = config.CustomData
+            }
+            
+            for flag, element in next, config.Elements do
+                if ConfigManager.Parser[element.__type] then
+                    saveData.__elements[tostring(flag)] = ConfigManager.Parser[element.__type].Save(element)
+                end
+            end
+            
+            local jsonString = HttpService:JSONEncode(saveData)
+            if writefile then
+                writefile(config.Path, jsonString)
+                print("[MacUI ConfigManager] Saved config:", name)
+            end
+            
+            return saveData
+        end
+        
+        function config:Load()
+            if isfile and not isfile(config.Path) then
+                return false, "Config file does not exist"
+            end
+            
+            local success, data = pcall(function()
+                local readFunc = readfile or function()
+                    warn("[ MacUI.ConfigManager ] The config system doesn't work in the studio.")
+                    return nil
+                end
+                return HttpService:JSONDecode(readFunc(config.Path))
+            end)
+            
+            if not success then
+                return false, "Failed to parse config file"
+            end
+            
+            if not data.__version then
+                local newData = {
+                    __version = config.Version,
+                    __elements = data,
+                    __custom = {}
+                }
+                data = newData
+            end
+            
+            if ConfigManager.Window and ConfigManager.Window.PendingFlags then
+                for flag, element in next, ConfigManager.Window.PendingFlags do
+                    config:Register(flag, element)
+                end
+            end
+            
+            for flag, elementData in next, (data.__elements or {}) do
+                if config.Elements[flag] and ConfigManager.Parser[elementData.__type] then
+                    task.spawn(function()
+                        ConfigManager.Parser[elementData.__type].Load(config.Elements[flag], elementData)
+                    end)
+                end
+            end
+            
+            config.CustomData = data.__custom or {}
+            
+            print("[MacUI ConfigManager] Loaded config:", name)
+            return config.CustomData
+        end
+        
+        function config:GetData()
+            return {
+                elements = config.Elements,
+                custom = config.CustomData
+            }
+        end
+        
+        config:SetAsCurrent()
+        ConfigManager.Configs[name] = config
+        return config
+    end
+    
+    function ConfigManager:AllConfigs()
+        if not listfiles then return {} end
+        
+        local configs = {}
+        if not isfolder(ConfigManager.Path) then
+            makefolder(ConfigManager.Path)
+            return configs
+        end
+        
+        for _, filePath in next, listfiles(ConfigManager.Path) do
+            local configName = filePath:match("([^\\/]+)%.json$")
+            if configName then
+                table.insert(configs, configName)
+            end
+        end
+        
+        return configs
+    end
+    
+    function ConfigManager:GetConfig(name)
+        return ConfigManager.Configs[name]
+    end
+    
+    function ConfigManager:DeleteConfig(name)
+        local filePath = ConfigManager.Path .. name .. ".json"
+        if isfile and isfile(filePath) then
+            if delfile then
+                delfile(filePath)
+                ConfigManager.Configs[name] = nil
+                print("[MacUI ConfigManager] Deleted config:", name)
+                return true
+            end
+        end
+        return false, "Config file does not exist"
+    end
+
     local Themes = {
         Default = {
             Background = Color3.fromRGB(240, 240, 245),
@@ -820,6 +969,16 @@ function MacUI:Window(config)
     }
     
     local currentTheme = Themes[config.Theme] or Themes.Default
+    
+    self.Themes = Themes
+    self.CurrentConfig = nil
+    self.PendingFlags = {}
+    self.ConfigManager = nil
+    
+    if config.Folder then
+        self.Folder = config.Folder
+        self.ConfigManager = ConfigManager:Init(self)
+    end
 
     MainFrame = create("Frame", {
         Parent = ScreenGui,
@@ -1114,47 +1273,35 @@ function MacUI:Window(config)
         BorderSizePixel = 0
     })
 
-    -- Initialize ConfigManager (similar to WindUI)
-    self.ConfigManager = nil
-    self.CurrentConfig = nil
-    
+    self.ConfigData = {}
     if config.ConfigurationSaving and config.ConfigurationSaving.Enabled then
-        -- Bridge ConfigurationSaving to ConfigManager requirements
-        if not config.SaveKey then
-            config.SaveKey = config.ConfigurationSaving.FileName or config.Name or "MacUI"
+        local configFileName = config.ConfigurationSaving.FileName or "MacUI_Config"
+        self.ConfigData = LoadConfig(configFileName) or {}
+        
+        print("[MacUI] Config system enabled - File:", configFileName .. ".json")
+        print("[MacUI] Loaded config data:", HttpService:JSONEncode(self.ConfigData))
+        
+        self.SaveConfig = function()
+            if config.ConfigurationSaving and config.ConfigurationSaving.Enabled then
+                SaveConfig(configFileName, self.ConfigData)
+                print("[MacUI] Config data saved:", HttpService:JSONEncode(self.ConfigData))
+            end
         end
         
-        -- Initialize ConfigManager
-        local configMgr = ConfigManager:Init(config)
-        if configMgr then
-            self.ConfigManager = configMgr
-            
-            -- Create or load config
-            local configFileName = config.ConfigurationSaving.FileName or "default"
-            self.CurrentConfig = self.ConfigManager:CreateConfig(configFileName)
-            
-            -- Try to load existing config
-            local success, loadedData = self.CurrentConfig:Load()
-            if success then
-                print("[MacUI ConfigManager] Loaded config from:", self.CurrentConfig.Path)
-            else
-                print("[MacUI ConfigManager] Created new config at:", self.CurrentConfig.Path)
-            end
-            
-            -- Auto-save every 30 seconds
-            task.spawn(function()
-                while ScreenGui and ScreenGui.Parent do
-                    task.wait(30)
-                    if self.CurrentConfig then
-                        self.CurrentConfig:Save()
-                    end
+        SaveConfig(configFileName, self.ConfigData)
+        print("[MacUI] Initial config file created")
+        
+        task.spawn(function()
+            while ScreenGui and ScreenGui.Parent do
+                task.wait(10)
+                if next(self.ConfigData) ~= nil then
+                    self.SaveConfig()
                 end
-            end)
-        else
-            warn("[MacUI] Failed to initialize ConfigManager")
-        end
+            end
+        end)
     else
-        print("[MacUI] Config system disabled - Set ConfigurationSaving.Enabled = true")
+        self.SaveConfig = function() end
+        print("[MacUI] Config system disabled")
     end
 
     function self:SelectTab(index)
@@ -1706,10 +1853,6 @@ function MacUI:Window(config)
         
         function tab:Toggle(cfg)
             local toggleState = cfg.Default or false
-            local toggleAPI = {
-                __type = "Toggle",
-                Value = toggleState
-            }
             
             local holder = create("Frame", {
                 Parent = TabPage,
@@ -1758,7 +1901,6 @@ function MacUI:Window(config)
 
             btn.MouseButton1Click:Connect(function()
                 toggleState = not toggleState
-                toggleAPI.Value = toggleState
                 tween(toggleBg, 0.2, { 
                     BackgroundColor3 = toggleState and Color3.fromRGB(52, 199, 89) or Color3.fromRGB(200, 200, 205)
                 })
@@ -1767,34 +1909,35 @@ function MacUI:Window(config)
                 })
                 if cfg.Callback then cfg.Callback(toggleState) end
                 
-                -- Save to ConfigManager
-                if self.CurrentConfig and cfg.Flag then
-                    self.CurrentConfig:Register(cfg.Flag, toggleAPI)
-                    task.spawn(function()
-                        task.wait(0.1)
-                        self.CurrentConfig:Save()
-                    end)
+                if self.ConfigData and cfg.Flag then
+                    self.ConfigData[cfg.Flag] = toggleState
+                    if self.SaveConfig then self.SaveConfig() end
                 end
             end)
             
-            -- Register with ConfigManager and load saved value
-            if self.CurrentConfig and cfg.Flag then
-                self.CurrentConfig:Register(cfg.Flag, toggleAPI)
+            if self.ConfigData and cfg.Flag and self.ConfigData[cfg.Flag] ~= nil then
+                toggleState = self.ConfigData[cfg.Flag]
+                toggleBg.BackgroundColor3 = toggleState and Color3.fromRGB(52, 199, 89) or Color3.fromRGB(200, 200, 205)
+                toggleKnob.Position = toggleState and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
             end
             
-            toggleAPI.Set = function(selfAPI, value)
-                toggleState = value
-                toggleAPI.Value = value
-                tween(toggleBg, 0.2, { 
-                    BackgroundColor3 = toggleState and Color3.fromRGB(52, 199, 89) or Color3.fromRGB(200, 200, 205)
-                })
-                tween(toggleKnob, 0.2, {
-                    Position = toggleState and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
-                })
-                if cfg.Callback then cfg.Callback(toggleState) end
-            end
-            
-            toggleAPI.Get = function(self)
+            local toggleAPI = {
+                Set = function(self, value)
+                    toggleState = value
+                    tween(toggleBg, 0.2, { 
+                        BackgroundColor3 = toggleState and Color3.fromRGB(52, 199, 89) or Color3.fromRGB(200, 200, 205)
+                    })
+                    tween(toggleKnob, 0.2, {
+                        Position = toggleState and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+                    })
+                    if cfg.Callback then cfg.Callback(toggleState) end
+                    if self.ConfigData and cfg.Flag then
+                        self.ConfigData[cfg.Flag] = toggleState
+                        if self.SaveConfig then self.SaveConfig() end
+                    end
+                end,
+                
+                Get = function(self)
                     return toggleState
                 end,
                 
@@ -2947,6 +3090,35 @@ local function roundValue(val)
                 end
             end
         end
+    end
+    
+    function self:CreateConfig(name)
+        if not self.ConfigManager then
+            warn("[MacUI] ConfigManager not initialized. Please specify Window.Folder")
+            return false
+        end
+        return self.ConfigManager:CreateConfig(name)
+    end
+    
+    function self:GetConfig(name)
+        if not self.ConfigManager then
+            return nil
+        end
+        return self.ConfigManager:GetConfig(name)
+    end
+    
+    function self:AllConfigs()
+        if not self.ConfigManager then
+            return {}
+        end
+        return self.ConfigManager:AllConfigs()
+    end
+    
+    function self:DeleteConfig(name)
+        if not self.ConfigManager then
+            return false
+        end
+        return self.ConfigManager:DeleteConfig(name)
     end
     
     return self
