@@ -1,4 +1,4 @@
--- join DiscorDiscordcyjs://discord.gg/cQywVqjcyj
+-- join Discord: discord.gg/cQywVqjcyj
 local MacUI = {}
 
 local Players = game:GetService("Players")
