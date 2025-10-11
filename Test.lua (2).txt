@@ -190,6 +190,45 @@ function ConfigManager:GetConfig(configName)
 end
 
 -- ==========================================
+-- LEGACY CONFIG FUNCTIONS (For backward compatibility)
+-- ==========================================
+local ConfigFolder = "MacUI_Configs"
+
+local function SaveConfig(fileName, data)
+    if not isfolder(ConfigFolder) then
+        makefolder(ConfigFolder)
+    end
+    local filePath = ConfigFolder .. "/" .. fileName .. ".json"
+    local jsonString
+    if next(data) == nil then
+        jsonString = "{}"
+    else
+        jsonString = HttpService:JSONEncode(data)
+    end
+    
+    writefile(filePath, jsonString)
+    print("[MacUI Config] Saved to:", filePath)
+end
+
+local function LoadConfig(fileName)
+    if isfile(ConfigFolder .. "/" .. fileName .. ".json") then
+        local content = readfile(ConfigFolder .. "/" .. fileName .. ".json")
+        if content == "[]" then
+            return {}
+        end
+        local success, result = pcall(function()
+            return HttpService:JSONDecode(content)
+        end)
+        if success then
+            return result
+        else
+            return {}
+        end
+    end
+    return nil
+end
+
+-- ==========================================
 -- HELPER FUNCTIONS
 -- ==========================================
 local function create(class, props)
