@@ -705,10 +705,6 @@ local function CreateKeySystem(config, callback)
             StatusLabel.Text = "✓ Key accepted! Loading..."
             StatusLabel.TextColor3 = Color3.fromRGB(52, 199, 89)
             
-            if keySettings.SaveKey then
-                SaveConfig(keySettings.FileName or "MacUI_Key", { Key = enteredKey })
-            end
-            
             keyAccepted = true
             wait(0.5)
             tween(KeyFrame, 0.3, { Size = UDim2.new(0, 0, 0, 0), Position = UDim2.new(0.5, 0, 0.5, 0) })
@@ -725,17 +721,6 @@ local function CreateKeySystem(config, callback)
             StatusLabel.TextColor3 = Color3.fromRGB(255, 59, 48)
         end
     end)
-    
-    if keySettings.SaveKey then
-        local saved = LoadConfig(keySettings.FileName or "MacUI_Key")
-        if saved and CheckKey(saved.Key) then
-            KeyGui:Destroy()
-            if callback then
-                callback(true)
-            end
-            return
-        end
-    end
 end
 
 function MacUI:Window(config)
@@ -772,13 +757,6 @@ function MacUI:Window(config)
         local discordSettings = config.Discord
         local shouldPrompt = true
         
-        if discordSettings.RememberJoins then
-            local saved = LoadConfig("Discord_" .. (discordSettings.Invite or "default"))
-            if saved and saved.Joined then
-                shouldPrompt = false
-            end
-        end
-        
         if shouldPrompt and syn and syn.request then
             local success = pcall(function()
                 syn.request({
@@ -795,9 +773,6 @@ function MacUI:Window(config)
                     })
                 })
                 
-                if discordSettings.RememberJoins then
-                    SaveConfig("Discord_" .. (discordSettings.Invite or "default"), { Joined = true })
-                end
             end)
         end
     end
